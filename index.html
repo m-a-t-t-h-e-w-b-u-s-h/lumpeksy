@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trasa po lumpeksach</title>
+<style>
+:root {
+  --bg: #f6f2ea; --card: #fffdf8; --ink: #26231e; --muted: #6f685c; --line: #e0d9ca;
+  --accent: #1f6b4f; --accent-ink: #ffffff; --accent-soft: #dcebe3;
+  --tag: #f3d9a4; --tag-ink: #4d3610; --warn: #9a3412; --warn-soft: #fbe6da;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #191815; --card: #23211d; --ink: #f0ebe0; --muted: #a79f90; --line: #3a372f;
+    --accent: #5cc29a; --accent-ink: #10231b; --accent-soft: #233a30;
+    --tag: #5a4520; --tag-ink: #f8e3b8; --warn: #f4a27c; --warn-soft: #3d2519;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.7rem; margin: 0 0 4px; letter-spacing: -.01em; }
+h2 { font-size: 1.1rem; margin: 0 0 12px; }
+p { margin: 0 0 10px; }
+a { color: var(--accent); }
+.lead, .hint { color: var(--muted); }
+.hint { font-size: .875rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 16px; }
+label, .label { display: block; font-size: .875rem; font-weight: 600; margin-bottom: 4px; }
+input, button { font: inherit; color: inherit; }
+input[type=text], input[type=password], input[type=number], input[type=time], input[type=datetime-local] {
+  width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+}
+button { cursor: pointer; padding: 9px 14px; border: 1px solid var(--line); border-radius: 8px; background: transparent; }
+button:hover { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.link { border: 0; padding: 0; background: none; color: var(--accent); text-decoration: underline; }
+button:disabled { opacity: .55; cursor: default; }
+.field { margin-bottom: 14px; }
+.row { display: flex; gap: 8px; }
+.row > input { flex: 1; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { flex: 1 1 auto; padding: 8px 10px; text-align: center; }
+.seg button[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.seg.tight button { flex: 1 1 36px; padding: 8px 2px; min-width: 36px; }
+#dlgRating { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.picked { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 9px 10px; background: var(--accent-soft); border-radius: 8px; }
+.results { list-style: none; margin: 8px 0 0; padding: 0; }
+.results button { display: block; width: 100%; text-align: left; margin-bottom: 4px; }
+.results small { display: block; color: var(--muted); }
+.shop { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); }
+.shop.off { opacity: .55; }
+.shop-body { flex: 1; min-width: 0; }
+.shop-body strong { display: block; overflow-wrap: anywhere; }
+.shop-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; font-size: .875rem; }
+.tag { flex: none; min-width: 48px; padding: 6px 8px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; background: var(--tag); color: var(--tag-ink); border-radius: 6px 14px 14px 6px; }
+.err { color: var(--warn); background: var(--warn-soft); padding: 10px 12px; border-radius: 8px; margin-top: 12px; }
+.note { background: var(--accent-soft); padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; }
+#findBtn { width: 100%; margin-top: 16px; padding: 13px; font-size: 1.05rem; }
+.total { font-size: 2.2rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+#map { height: 340px; border-radius: 10px; margin: 14px 0; background: var(--line); }
+.steps { list-style: none; margin: 14px 0 0; padding: 0; }
+.steps li { display: grid; grid-template-columns: 54px 1fr; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.steps time { font-weight: 700; font-variant-numeric: tabular-nums; }
+.steps .travel { color: var(--muted); font-size: .875rem; }
+dialog { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); padding: 18px; }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+.preview { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; text-align: center; font-size: .8rem; }
+.preview div { padding: 5px 0; border-radius: 6px; background: var(--bg); font-variant-numeric: tabular-nums; }
+.preview div.reset { background: var(--tag); color: var(--tag-ink); font-weight: 700; }
+.preview b { display: block; font-size: .95rem; }
+.dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.pin { display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #1f6b4f; color: #fff; font: 700 13px/1 system-ui, sans-serif; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Trasa po lumpeksach</h1>
+  <p class="lead">Podaj, skąd i dokąd idziesz, a aplikacja wybierze lumpeksy o najwyższej łącznej ocenie, które zdążysz odwiedzić.</p>
+
+  <div id="app">
+    <section class="card">
+      <h2>Trasa</h2>
+      <div class="field">
+        <div class="label">Skąd</div>
+        <div id="startSlot"></div>
+      </div>
+      <div class="field">
+        <div class="label">Dokąd</div>
+        <div id="destSlot"></div>
+      </div>
+      <div class="grid2 field">
+        <div>
+          <label for="deadline">Mam być do</label>
+          <input type="datetime-local" id="deadline">
+        </div>
+        <div>
+          <label for="departure">Wyjście</label>
+          <input type="datetime-local" id="departure">
+          <div class="hint">Puste oznacza teraz</div>
+        </div>
+      </div>
+      <div class="field">
+        <div class="label">Jak się poruszam</div>
+        <div class="seg" id="modeSeg">
+          <button type="button" data-mode="WALKING">Pieszo</button>
+          <button type="button" data-mode="BICYCLING">Rower</button>
+          <button type="button" data-mode="TRANSIT">Komunikacja</button>
+        </div>
+      </div>
+      <div>
+        <label for="buffer">Zapas na spóźnienia (min)</label>
+        <input type="number" id="buffer" min="0" step="1" style="max-width:120px">
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Lumpeksy</h2>
+      <p class="hint" id="shopHint">Wpisz np. „second hand Warszawa” albo adres sklepu. W OpenStreetMap nie ma wszystkich lumpeksów, więc jeśli sklepu nie ma, wyszukaj jego adres.</p>
+      <div id="shopSlot"></div>
+      <div id="shopList" style="margin-top:12px"></div>
+    </section>
+
+    <button class="primary" id="findBtn" type="button">Znajdź najlepszą trasę</button>
+    <div class="err" id="findErr" hidden></div>
+
+    <section class="card" id="result" hidden>
+      <div class="label">Suma ocen</div>
+      <div class="total" id="resTotal"></div>
+      <p id="resSummary" style="margin-top:6px"></p>
+      <div id="resWarn"></div>
+      <div id="map" hidden></div>
+      <ol class="steps" id="resSteps"></ol>
+      <p id="resAll" style="margin-top:12px"></p>
+      <div id="resSkipped" class="hint"></div>
+      <p id="resBeta" class="hint" style="margin-top:10px"></p>
+    </section>
+
+    <section class="card" id="keyCard" hidden>
+      <h2>Klucz Google Maps</h2>
+      <p class="hint">Opcjonalnie, zamiast darmowych map. W <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a> utwórz klucz i włącz: Maps JavaScript API, Places API (New) oraz Routes API. Google wymaga włączonych płatności. Klucz zostaje tylko w tej przeglądarce.</p>
+      <div class="row">
+        <input type="password" id="keyInput" placeholder="Wklej klucz" autocomplete="off" aria-label="Klucz API">
+        <button class="primary" id="keySave" type="button">Zapisz</button>
+      </div>
+      <div class="err" id="keyErr" hidden></div>
+    </section>
+
+    <p class="hint" style="margin-top:20px"><button class="link" type="button" id="keyToggle"></button></p>
+    <p class="hint" id="credits" hidden>
+      Dane mapy: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">współtwórcy OpenStreetMap</a> (<a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">popraw mapę</a>).
+      Wyszukiwanie: <a href="https://operations.osmfoundation.org/policies/nominatim/" target="_blank" rel="noopener">Nominatim</a>.
+      Trasy pieszo i rowerem: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS</a>.
+      Komunikacja: <a href="https://transitous.org/sources/" target="_blank" rel="noopener">Transitous i jego źródła</a>.
+      Kafelki: © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>.
+      Kod i kontakt: <a href="https://github.com/m-a-t-t-h-e-w-b-u-s-h/lumpeksy" target="_blank" rel="noopener">GitHub</a> (licencja MIT).
+    </p>
+  </div>
+</main>
+
+<dialog id="shopDlg">
+  <form method="dialog" id="shopForm">
+    <h2 id="dlgName" style="overflow-wrap:anywhere"></h2>
+    <div class="field">
+      <div class="label">Ocena dziś (1–10)</div>
+      <div class="seg tight" id="dlgRating"></div>
+    </div>
+    <div class="field">
+      <div class="label">O ile spada każdego dnia</div>
+      <div class="row">
+        <div class="seg" id="dlgType" style="flex:none">
+          <button type="button" data-type="minus" aria-label="Odejmowanie">− odejmij</button>
+          <button type="button" data-type="times" aria-label="Mnożenie">× pomnóż</button>
+        </div>
+        <input type="number" id="dlgDecay" step="0.05" min="0" aria-label="Wartość spadku">
+      </div>
+    </div>
+    <div class="field">
+      <div class="label">Dzień dostawy (ocena wraca wtedy do wyjściowej)</div>
+      <div class="seg tight" id="dlgDays"></div>
+    </div>
+    <div class="field">
+      <div class="label">Tak będzie spadać przez najbliższy tydzień</div>
+      <div class="preview" id="dlgPreview"></div>
+    </div>
+    <div class="field">
+      <label for="dlgVisit">Czas na ten lumpeks (min)</label>
+      <input type="number" id="dlgVisit" min="1" step="5">
+    </div>
+    <div class="label">Godziny otwarcia (opcjonalnie)</div>
+    <div class="grid2 field">
+      <input type="time" id="dlgOpen" aria-label="Otwarcie">
+      <input type="time" id="dlgClose" aria-label="Zamknięcie">
+    </div>
+    <div class="err" id="dlgErr" hidden></div>
+    <div class="dlg-actions">
+      <button type="button" id="dlgCancel">Anuluj</button>
+      <button type="button" class="primary" id="dlgSave">Zapisz</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const STORE = 'lumpeksy.v1';
+const MAX_SOLVER_SHOPS = 16;
+const DAY_LABELS = [[1,'Pn'],[2,'Wt'],[3,'Śr'],[4,'Cz'],[5,'Pt'],[6,'So'],[0,'Nd']];
+const MODE_WORDS = { WALKING: 'pieszo', BICYCLING: 'rowerem', TRANSIT: 'komunikacją' };
+const MODE_URL = { WALKING: 'walking', BICYCLING: 'bicycling', TRANSIT: 'transit' };
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const toDateStr = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const toLocalInput = d => `${toDateStr(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const fmtTime = ms => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const fmtScore = x => String(Math.round(x * 10) / 10).replace('.', ',');
+const fmtMin = sec => {
+  const m = Math.round(sec / 60);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${pad(m % 60)} min`;
+};
+const shopsWord = n => n === 1 ? 'lumpeks' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14)) ? 'lumpeksy' : 'lumpeksów';
+
+/* ---------- Ocena w danym dniu ---------- */
+
+const dayNum = str => { const [y, m, d] = str.split('-').map(Number); return Date.UTC(y, m - 1, d) / 864e5; };
+
+// Ocena liczona jest od dnia jej wystawienia albo od ostatniej dostawy, zależnie co było później.
+function daysSinceReset(shop, dateStr) {
+  const d = dayNum(dateStr);
+  let ref = dayNum(shop.ratedAt);
+  if (shop.days.length) {
+    const dow = new Date(d * 864e5).getUTCDay();
+    for (let back = 0; back < 7; back++) {
+      if (shop.days.includes(((dow - back) % 7 + 7) % 7)) { ref = Math.max(ref, d - back); break; }
+    }
+  }
+  return Math.max(0, d - ref);
+}
+
+function scoreOn(shop, dateStr) {
+  const days = daysSinceReset(shop, dateStr);
+  return shop.decayType === 'times'
+    ? shop.base * Math.pow(shop.decayValue, days)
+    : Math.max(0, shop.base - shop.decayValue * days);
+}
+
+/* ---------- Wybór trasy: programowanie dynamiczne po podzbiorach ---------- */
+
+// Indeksy w t: 0..n-1 sklepy, n start, n+1 cel. Czasy w sekundach od wyjścia.
+// Wcześniejsze wyjście ze sklepu nigdy nie szkodzi, więc wystarczy pamiętać najwcześniejsze dla (zbiór, ostatni).
+function solve({ score, visit, open, close, t, D }) {
+  const n = score.length, S = n, E = n + 1, N = 1 << n;
+  const dp = new Float64Array(N * n).fill(Infinity);
+  const par = new Int8Array(N * n).fill(-1);
+  const sum = new Float64Array(N);
+  const finishAt = (arrive, j) => {
+    const f = Math.max(arrive, open[j] ?? -Infinity) + visit[j];
+    return f > Math.min(D, close[j] ?? Infinity) ? Infinity : f;
+  };
+  for (let j = 0; j < n; j++) dp[(1 << j) * n + j] = finishAt(t[S][j], j);
+
+  let best = t[S][E] <= D ? { sum: 0, arrive: t[S][E], mask: 0, last: -1 } : null;
+  for (let mask = 1; mask < N; mask++) {
+    sum[mask] = sum[mask & (mask - 1)] + score[31 - Math.clz32(mask & -mask)];
+    for (let last = 0; last < n; last++) {
+      if (!(mask >> last & 1)) continue;
+      const f = dp[mask * n + last];
+      if (f === Infinity) continue;
+      const arrive = f + t[last][E];
+      if (arrive <= D && (!best || sum[mask] > best.sum + 1e-9 ||
+          (Math.abs(sum[mask] - best.sum) <= 1e-9 && arrive < best.arrive))) {
+        best = { sum: sum[mask], arrive, mask, last };
+      }
+      for (let j = 0; j < n; j++) {
+        if (mask >> j & 1) continue;
+        const g = finishAt(f + t[last][j], j), key = (mask | 1 << j) * n + j;
+        if (g < dp[key]) { dp[key] = g; par[key] = last; }
+      }
+    }
+  }
+  if (!best) return null;
+  const order = [];
+  for (let mask = best.mask, last = best.last; last !== -1;) {
+    order.unshift(last);
+    const prev = par[mask * n + last];
+    mask &= ~(1 << last);
+    last = prev;
+  }
+  return { order, sum: best.sum, arrive: best.arrive };
+}
+
+/* ---------- Dane Google ---------- */
+
+let googleReady = null;
+
+function loadGoogle(key) {
+  if (googleReady) return googleReady;
+  googleReady = new Promise((resolve, reject) => {
+    const finish = async () => {
+      try {
+        await Promise.all(['maps', 'marker', 'routes', 'places'].map(l => google.maps.importLibrary(l)));
+        resolve();
+      } catch (e) { reject(e); }
+    };
+    if (window.google?.maps?.importLibrary) return finish();
+    window.__gmReady = finish;
+    window.gm_authFailure = () => {
+      showError($('findErr'), 'Google odrzucił klucz. Sprawdź, czy jest poprawny i czy projekt ma włączone płatności oraz trzy wymagane API.');
+    };
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&loading=async&language=pl&v=weekly&callback=__gmReady`;
+    s.onerror = () => { googleReady = null; reject(new Error('Nie udało się wczytać Google Maps. Sprawdź internet.')); };
+    document.head.appendChild(s);
+  });
+  return googleReady;
+}
+
+const toLatLng = p => ({ lat: p.lat, lng: p.lng });
+const readCoord = v => typeof v === 'function' ? v() : v;
+
+const googleApi = {
+  async search(query, near) {
+    await loadGoogle(state.key);
+    const { Place } = await google.maps.importLibrary('places');
+    const request = { textQuery: query, fields: ['id', 'displayName', 'formattedAddress', 'location'], language: 'pl', maxResultCount: 8 };
+    const country = (navigator.language || '').split('-')[1];
+    if (country) request.region = country.toLowerCase();
+    if (near) request.locationBias = { center: toLatLng(near), radius: 20000 };
+    const { places } = await Place.searchByText(request);
+    return (places || []).map(p => ({
+      id: p.id, name: p.displayName, address: p.formattedAddress || '',
+      lat: readCoord(p.location.lat), lng: readCoord(p.location.lng)
+    }));
+  },
+
+  // Zwraca macierz sekund; origins to indeksy wierszy, destinations kolumn w points.
+  async matrix(points, origins, destinations, mode, departMs) {
+    await loadGoogle(state.key);
+    const { RouteMatrix } = await google.maps.importLibrary('routes');
+    const limit = mode === 'TRANSIT' ? 100 : 625;
+    const perBatch = Math.max(1, Math.floor(limit / destinations.length));
+    const t = points.map(() => points.map(() => Infinity));
+    for (let i = 0; i < origins.length; i += perBatch) {
+      const batch = origins.slice(i, i + perBatch);
+      const request = {
+        origins: batch.map(k => toLatLng(points[k])),
+        destinations: destinations.map(k => toLatLng(points[k])),
+        travelMode: mode,
+        fields: ['durationMillis', 'condition']
+      };
+      if (mode === 'TRANSIT') request.departureTime = new Date(departMs);
+      const { matrix } = await RouteMatrix.computeRouteMatrix(request);
+      matrix.rows.forEach((row, r) => row.items.forEach((item, c) => {
+        if (item.durationMillis != null) t[batch[r]][destinations[c]] = item.durationMillis / 1000;
+        else if (String(item.condition) === 'ROUTE_EXISTS') t[batch[r]][destinations[c]] = 0;
+      }));
+    }
+    return t;
+  },
+
+  async leg(a, b, mode, departMs) {
+    await loadGoogle(state.key);
+    const { Route } = await google.maps.importLibrary('routes');
+    const request = { origin: toLatLng(a), destination: toLatLng(b), travelMode: mode, fields: ['durationMillis', 'path', 'warnings'] };
+    if (mode === 'TRANSIT') request.departureTime = new Date(departMs);
+    const { routes } = await Route.computeRoutes(request);
+    const route = routes && routes[0];
+    if (!route) return null;
+    return {
+      sec: (route.durationMillis || 0) / 1000,
+      path: (route.path || []).map(p => ({ lat: readCoord(p.lat), lng: readCoord(p.lng) })),
+      warnings: route.warnings || []
+    };
+  }
+};
+
+/* ---------- Dane darmowe: OpenStreetMap, FOSSGIS, Transitous ---------- */
+
+const ROUTERS = { WALKING: 'routed-foot', BICYCLING: 'routed-bike' };
+const TRANSIT_CHECK_LIMIT = 30;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Nominatim i FOSSGIS pozwalają na najwyżej jedno zapytanie na sekundę, Transitous prosi o oszczędne użycie.
+const gates = {};
+function fetchJson(url) {
+  const host = new URL(url).host;
+  const run = (gates[host] || Promise.resolve()).then(async () => {
+    const r = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  });
+  gates[host] = run.catch(() => {}).then(() => sleep(1100));
+  return run;
+}
+
+function crowKm(a, b) {
+  const rad = x => x * Math.PI / 180;
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+
+function decodePolyline(str, precision) {
+  const factor = 10 ** precision, path = [];
+  let i = 0, lat = 0, lng = 0;
+  const next = () => {
+    let shift = 0, res = 0, b;
+    do { b = str.charCodeAt(i++) - 63; res |= (b & 31) << shift; shift += 5; } while (b >= 32);
+    return res & 1 ? ~(res >> 1) : res >> 1;
+  };
+  while (i < str.length) { lat += next(); lng += next(); path.push({ lat: lat / factor, lng: lng / factor }); }
+  return path;
+}
+
+const legCache = new Map();
+
+const osmApi = {
+  lazyTransit: true,
+
+  async search(query, near) {
+    const params = new URLSearchParams({ format: 'jsonv2', limit: 8, 'accept-language': 'pl', q: query });
+    if (near) params.set('viewbox', [near.lng - .3, near.lat + .2, near.lng + .3, near.lat - .2].join(','));
+    const rows = await fetchJson(`https://nominatim.openstreetmap.org/search?${params}`);
+    return rows.map(r => ({
+      id: `${r.osm_type}/${r.osm_id}`,
+      name: r.name || r.display_name.split(',').slice(0, 2).join(',').trim(),
+      address: r.display_name,
+      lat: +r.lat, lng: +r.lon
+    }));
+  },
+
+  // Dla komunikacji to tylko szacunki; prawdziwe czasy dociąga refineTransit.
+  async matrix(points, origins, destinations, mode) {
+    const t = points.map(() => points.map(() => Infinity));
+    if (mode === 'TRANSIT') {
+      origins.forEach(i => destinations.forEach(j => {
+        const km = crowKm(points[i], points[j]);
+        t[i][j] = Math.min(km / 5 * 3600, km / 20 * 3600 + 300);
+      }));
+      return t;
+    }
+    const coords = points.map(p => `${p.lng},${p.lat}`).join(';');
+    const res = await fetchJson(`https://routing.openstreetmap.de/${ROUTERS[mode]}/table/v1/driving/${coords}?annotations=duration&sources=${origins.join(';')}&destinations=${destinations.join(';')}`);
+    res.durations.forEach((row, r) => row.forEach((sec, c) => {
+      if (sec !== null) t[origins[r]][destinations[c]] = sec;
+    }));
+    return t;
+  },
+
+  async leg(a, b, mode, departMs) {
+    const key = [a.lat, a.lng, b.lat, b.lng, mode, mode === 'TRANSIT' ? Math.round(departMs / 3e5) : 0].join('|');
+    if (!legCache.has(key)) {
+      const pending = (mode === 'TRANSIT' ? this.transitLeg(a, b, departMs) : this.streetLeg(a, b, mode));
+      legCache.set(key, pending);
+      pending.catch(() => legCache.delete(key));
+    }
+    return legCache.get(key);
+  },
+
+  async streetLeg(a, b, mode) {
+    const res = await fetchJson(`https://routing.openstreetmap.de/${ROUTERS[mode]}/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson`);
+    const route = res.routes && res.routes[0];
+    if (!route) return null;
+    return { sec: route.duration, path: route.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })), warnings: [], lines: [] };
+  },
+
+  async transitLeg(a, b, departMs) {
+    const params = new URLSearchParams({ fromPlace: `${a.lat},${a.lng}`, toPlace: `${b.lat},${b.lng}`, numItineraries: 3, time: new Date(departMs).toISOString() });
+    const res = await fetchJson(`https://api.transitous.org/api/v5/plan?${params}`);
+    // Liczy się godzina dotarcia, bo czas czekania na przystanek też zabiera czas.
+    const options = [
+      ...(res.itineraries || []).map(it => ({ it, sec: (new Date(it.endTime).getTime() - departMs) / 1000 })),
+      ...(res.direct || []).map(it => ({ it, sec: it.duration }))
+    ].sort((x, y) => x.sec - y.sec);
+    if (!options.length) return this.streetLeg(a, b, 'WALKING');
+    const { it, sec } = options[0];
+    return {
+      sec,
+      path: (it.legs || []).flatMap(l => l.legGeometry ? decodePolyline(l.legGeometry.points, l.legGeometry.precision) : []),
+      warnings: [],
+      lines: [...new Set((it.legs || []).map(l => l.routeShortName).filter(Boolean))]
+    };
+  }
+};
+
+// Sprawdzanie wszystkich par to setki zapytań, więc pytamy tylko o odcinki aktualnie najlepszej trasy.
+// Szacunki są raczej optymistyczne: gdy najlepsza trasa ma same prawdziwe czasy, inna prawie na pewno jej nie pobije.
+async function refineTransit(inp, points, departMs, onProgress) {
+  const { t } = inp, n = inp.score.length, S = n, E = n + 1;
+  const real = new Set();
+  const check = async (a, b, clock) => {
+    const leg = await api().leg(points[a], points[b], 'TRANSIT', clock);
+    t[a][b] = leg ? leg.sec : Infinity;
+    real.add(`${a}|${b}`);
+    onProgress(real.size);
+  };
+  await check(S, E, departMs);
+  for (;;) {
+    const plan = solve(inp);
+    if (!plan) return { plan: null, exact: true };
+    const seq = [S, ...plan.order, E];
+    let clock = 0, fresh = false;
+    for (let i = 0; i + 1 < seq.length; i++) {
+      const a = seq[i], b = seq[i + 1];
+      if (!real.has(`${a}|${b}`)) {
+        if (real.size >= TRANSIT_CHECK_LIMIT) {
+          t.forEach((row, x) => row.forEach((_, y) => { if (!real.has(`${x}|${y}`)) row[y] = Infinity; }));
+          return { plan: solve(inp), exact: false };
+        }
+        await check(a, b, departMs + clock * 1000);
+        fresh = true;
+      }
+      clock += t[a][b];
+      if (b !== E) clock = Math.max(clock, inp.open[b] ?? -Infinity) + inp.visit[b];
+    }
+    if (!fresh) return { plan, exact: true };
+  }
+}
+
+/* ---------- Stan ---------- */
+
+let state = loadState();
+const api = () => state.key ? googleApi : osmApi;
+
+function loadState() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) {}
+  return { key: '', start: null, dest: null, deadline: '', departure: '', mode: 'WALKING', buffer: 5, shops: [], ...saved };
+}
+
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {}
+}
+
+function showError(el, msg) { el.textContent = msg; el.hidden = !msg; }
+
+let runToken = 0;
+
+function changed() {
+  runToken++;
+  save();
+  $('result').hidden = true;
+  showError($('findErr'), '');
+}
+
+const tripDateStr = () => toDateStr(state.departure ? new Date(state.departure) : new Date());
+
+/* ---------- Pola wyszukiwania miejsc ---------- */
+
+function renderPlaceField(slot, opts) {
+  const { value, placeholder, onPick, onClear, extra } = opts;
+  const el = $(slot);
+  if (value) {
+    el.innerHTML = `<div class="picked"><span>${esc(value.name)}</span><button class="link" type="button">Zmień</button></div>`;
+    el.querySelector('button').onclick = onClear;
+    return;
+  }
+  el.innerHTML = `
+    <div class="row">
+      <input type="text" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}">
+      <button type="button" data-go>Szukaj</button>
+    </div>
+    ${extra ? `<button type="button" data-extra style="margin-top:8px">${esc(extra.label)}</button>` : ''}
+    <ul class="results"></ul><div class="err" hidden></div>`;
+  const input = el.querySelector('input'), list = el.querySelector('.results'), err = el.querySelector('.err');
+  const go = async () => {
+    const query = input.value.trim();
+    if (!query) return input.focus();
+    showError(err, '');
+    list.innerHTML = '<li class="hint">Szukam…</li>';
+    try {
+      const places = await api().search(query, state.start);
+      list.innerHTML = places.length ? '' : '<li class="hint">Nic nie znaleziono. Spróbuj innej nazwy albo dopisz miasto.</li>';
+      places.forEach(p => {
+        const li = document.createElement('li');
+        li.innerHTML = `<button type="button">${esc(p.name)}<small>${esc(p.address)}</small></button>`;
+        li.firstChild.onclick = () => onPick(p, () => { list.innerHTML = ''; input.value = ''; });
+        list.appendChild(li);
+      });
+    } catch (e) {
+      list.innerHTML = '';
+      showError(err, serviceMessage(e));
+    }
+  };
+  el.querySelector('[data-go]').onclick = go;
+  input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+  if (extra) el.querySelector('[data-extra]').onclick = () => extra.run(err);
+}
+
+function serviceMessage(e) {
+  const why = e && e.message ? e.message : e;
+  return state.key
+    ? `Google zwrócił błąd: ${why}. Sprawdź, czy w projekcie są włączone Maps JavaScript API, Places API (New) i Routes API.`
+    : `Darmowy serwis nie odpowiedział (${why}). To serwery społeczności, więc spróbuj ponownie za chwilę.`;
+}
+
+function locateMe(err) {
+  if (!navigator.geolocation) return showError(err, 'Ta przeglądarka nie udostępnia lokalizacji. Wyszukaj adres.');
+  showError(err, '');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      state.start = { name: 'Moja lokalizacja', address: '', lat: pos.coords.latitude, lng: pos.coords.longitude };
+      changed(); renderTrip();
+    },
+    e => showError(err, e.code === 1
+      ? 'Brak zgody na lokalizację. Zezwól na nią w przeglądarce albo wyszukaj adres.'
+      : 'Nie udało się ustalić lokalizacji. Wyszukaj adres.'),
+    { enableHighAccuracy: true, timeout: 15000 }
+  );
+}
+
+function renderTrip() {
+  renderPlaceField('startSlot', {
+    value: state.start, placeholder: 'Adres lub nazwa miejsca',
+    onPick: p => { state.start = p; changed(); renderTrip(); },
+    onClear: () => { state.start = null; changed(); renderTrip(); },
+    extra: { label: 'Użyj mojej lokalizacji', run: locateMe }
+  });
+  renderPlaceField('destSlot', {
+    value: state.dest, placeholder: 'Adres lub nazwa miejsca',
+    onPick: p => { state.dest = p; changed(); renderTrip(); },
+    onClear: () => { state.dest = null; changed(); renderTrip(); }
+  });
+  $('deadline').value = state.deadline;
+  $('departure').value = state.departure;
+  $('buffer').value = state.buffer;
+  $('modeSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === state.mode));
+}
+
+/* ---------- Lista lumpeksów ---------- */
+
+function renderShops() {
+  renderPlaceField('shopSlot', {
+    value: null, placeholder: 'Nazwa sklepu, second hand albo adres',
+    onPick: (p, clear) => {
+      if (state.shops.some(s => s.id === p.id)) return showError($('shopSlot').querySelector('.err'), 'Ten sklep jest już na liście.');
+      clear();
+      openShopDialog(p, true);
+    }
+  });
+  const date = tripDateStr(), list = $('shopList');
+  if (!state.shops.length) {
+    list.innerHTML = '<p class="hint">Na liście nie ma jeszcze żadnego sklepu. Wyszukaj pierwszy.</p>';
+    return;
+  }
+  list.innerHTML = state.shops.map(s => {
+    const decay = s.decayType === 'times' ? `×${fmtScore(s.decayValue)}` : `−${fmtScore(s.decayValue)}`;
+    const days = s.days.length ? DAY_LABELS.filter(([v]) => s.days.includes(v)).map(([, l]) => l).join(', ') : 'nie podano';
+    const hours = s.open || s.close ? ` · ${esc(s.open || '…')}–${esc(s.close || '…')}` : '';
+    return `<div class="shop${s.active ? '' : ' off'}">
+      <div class="tag" title="Ocena w dniu wyjścia">${fmtScore(scoreOn(s, date))}</div>
+      <div class="shop-body">
+        <strong>${esc(s.name)}</strong>
+        <div class="hint">Ocena ${s.base}, spadek ${decay} dziennie · dostawa: ${days} · ${s.visitMin} min${hours}</div>
+        <div class="shop-actions">
+          <button class="link" type="button" data-edit="${esc(s.id)}">Edytuj</button>
+          <button class="link" type="button" data-toggle="${esc(s.id)}">${s.active ? 'Pomiń tym razem' : 'Uwzględnij'}</button>
+          <button class="link" type="button" data-del="${esc(s.id)}">Usuń</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+$('shopList').onclick = e => {
+  const d = e.target.dataset, find = id => state.shops.find(s => s.id === id);
+  if (d.edit) openShopDialog(find(d.edit), false);
+  else if (d.toggle) { const s = find(d.toggle); s.active = !s.active; changed(); renderShops(); }
+  else if (d.del) { state.shops = state.shops.filter(s => s.id !== d.del); changed(); renderShops(); }
+};
+
+/* ---------- Okno oceny lumpeksu ---------- */
+
+let draft = null, draftIsNew = false, draftOriginalBase = null;
+const DEFAULT_DECAY = { minus: 1, times: 0.8 };
+
+function openShopDialog(shop, isNew) {
+  draftIsNew = isNew;
+  draftOriginalBase = isNew ? null : shop.base;
+  const last = state.shops[state.shops.length - 1];
+  draft = isNew
+    ? { ...shop, base: 0, decayType: last ? last.decayType : 'minus', decayValue: last ? last.decayValue : 1,
+        days: [], visitMin: last ? last.visitMin : 30, open: '', close: '', active: true, ratedAt: toDateStr(new Date()) }
+    : { ...shop, days: [...shop.days] };
+  $('dlgName').textContent = draft.name;
+  $('dlgVisit').value = draft.visitMin;
+  $('dlgDecay').value = draft.decayValue;
+  $('dlgOpen').value = draft.open;
+  $('dlgClose').value = draft.close;
+  showError($('dlgErr'), '');
+  renderDialog();
+  $('shopDlg').showModal();
+}
+
+function renderDialog() {
+  showError($('dlgErr'), '');
+  $('dlgRating').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === draft.base));
+  $('dlgType').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.type === draft.decayType));
+  $('dlgDays').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', draft.days.includes(+b.dataset.v)));
+  $('dlgDecay').max = draft.decayType === 'times' ? 1 : '';
+  const today = new Date(), rated = draftOriginalBase !== null && draft.base !== draftOriginalBase ? toDateStr(today) : draft.ratedAt;
+  const probe = { ...draft, ratedAt: rated, decayValue: parseFloat($('dlgDecay').value) || 0 };
+  const labels = Object.fromEntries(DAY_LABELS);
+  $('dlgPreview').innerHTML = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i), str = toDateStr(d);
+    const reset = draft.days.includes(d.getDay());
+    return `<div class="${reset ? 'reset' : ''}">${labels[d.getDay()]}<b>${draft.base ? fmtScore(scoreOn(probe, str)) : '–'}</b></div>`;
+  }).join('');
+}
+
+function saveDialog() {
+  const value = parseFloat($('dlgDecay').value), visit = parseInt($('dlgVisit').value, 10);
+  const fail = msg => showError($('dlgErr'), msg);
+  if (!draft.base) return fail('Wybierz ocenę od 1 do 10.');
+  if (!(value >= 0)) return fail('Podaj wartość spadku.');
+  if (draft.decayType === 'times' && (value <= 0 || value > 1)) return fail('Mnożnik musi być większy od 0 i nie większy niż 1, np. 0,8.');
+  if (!(visit > 0)) return fail('Podaj czas na lumpeks w minutach.');
+  const open = $('dlgOpen').value, close = $('dlgClose').value;
+  if (open && close && close <= open) return fail('Zamknięcie musi być później niż otwarcie.');
+  if (draftOriginalBase !== null && draft.base !== draftOriginalBase) draft.ratedAt = toDateStr(new Date());
+  Object.assign(draft, { decayValue: value, visitMin: visit, open, close });
+  if (draftIsNew) state.shops.push(draft);
+  else state.shops[state.shops.findIndex(s => s.id === draft.id)] = draft;
+  $('shopDlg').close();
+  changed();
+  renderShops();
+}
+
+function buildDialogControls() {
+  $('dlgRating').innerHTML = Array.from({ length: 10 }, (_, i) => `<button type="button" data-v="${i + 1}">${i + 1}</button>`).join('');
+  $('dlgDays').innerHTML = DAY_LABELS.map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join('');
+  $('dlgRating').onclick = e => { if (e.target.dataset.v) { draft.base = +e.target.dataset.v; renderDialog(); } };
+  $('dlgDays').onclick = e => {
+    if (!e.target.dataset.v) return;
+    const v = +e.target.dataset.v;
+    draft.days = draft.days.includes(v) ? draft.days.filter(x => x !== v) : [...draft.days, v];
+    renderDialog();
+  };
+  $('dlgType').onclick = e => {
+    const t = e.target.dataset.type;
+    if (!t || t === draft.decayType) return;
+    draft.decayType = t;
+    $('dlgDecay').value = DEFAULT_DECAY[t];
+    renderDialog();
+  };
+  $('dlgDecay').oninput = renderDialog;
+  $('dlgCancel').onclick = () => $('shopDlg').close();
+  $('dlgSave').onclick = saveDialog;
+  $('shopForm').onsubmit = e => { e.preventDefault(); saveDialog(); };
+}
+
+/* ---------- Liczenie trasy ---------- */
+
+// Godzina "HH:MM" w dniu wyjścia jako sekundy od momentu wyjścia.
+function clockToRel(hhmm, departMs) {
+  if (!hhmm) return null;
+  const [h, m] = hhmm.split(':').map(Number);
+  const d = new Date(departMs);
+  d.setHours(h, m, 0, 0);
+  return (d.getTime() - departMs) / 1000;
+}
+
+async function findRoute() {
+  const errEl = $('findErr');
+  showError(errEl, '');
+  $('result').hidden = true;
+  if (!state.start) return showError(errEl, 'Podaj, skąd wychodzisz.');
+  if (!state.dest) return showError(errEl, 'Podaj, dokąd chcesz dotrzeć.');
+  if (!state.deadline) return showError(errEl, 'Podaj, o której masz być na miejscu.');
+  const now = Date.now();
+  const departMs = Math.max(now, state.departure ? new Date(state.departure).getTime() : now);
+  const deadlineMs = new Date(state.deadline).getTime();
+  const D = (deadlineMs - departMs) / 1000 - (state.buffer || 0) * 60;
+  if (deadlineMs <= departMs) return showError(errEl, 'Godzina dotarcia jest wcześniejsza niż wyjście.');
+  if (api().lazyTransit && state.mode === 'TRANSIT' && location.protocol === 'file:') {
+    return showError(errEl, 'Darmowa komunikacja (Transitous) działa tylko na opublikowanej stronie z otwartym kodem, a nie z pliku na dysku. Pieszo i rowerem działa bez tego.');
+  }
+
+  const date = toDateStr(new Date(departMs));
+  const ranked = state.shops
+    .filter(s => s.active)
+    .map(s => ({ shop: s, score: scoreOn(s, date) }))
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+  const cands = ranked.slice(0, MAX_SOLVER_SHOPS);
+
+  const btn = $('findBtn'), label = btn.textContent, token = ++runToken;
+  const staleMsg = 'Dane trasy zmieniły się w trakcie liczenia. Kliknij jeszcze raz, żeby policzyć od nowa.';
+  btn.disabled = true;
+  btn.textContent = 'Sprawdzam czasy przejazdów…';
+  try {
+    const n = cands.length, S = n, E = n + 1;
+    const points = [...cands.map(c => c.shop), state.start, state.dest];
+    const origins = [...cands.map((_, i) => i), S], destinations = [...cands.map((_, i) => i), E];
+    const t = await api().matrix(points, origins, destinations, state.mode, departMs);
+
+    btn.textContent = 'Układam trasę…';
+    const inp = {
+      score: cands.map(c => c.score),
+      visit: cands.map(c => c.shop.visitMin * 60),
+      open: cands.map(c => clockToRel(c.shop.open, departMs)),
+      close: cands.map(c => clockToRel(c.shop.close, departMs)),
+      t, D
+    };
+    const { plan, exact } = api().lazyTransit && state.mode === 'TRANSIT'
+      ? await refineTransit(inp, points, departMs, k => { btn.textContent = `Sprawdzam połączenia (${k})…`; })
+      : { plan: solve(inp), exact: true };
+    if (token !== runToken) return showError(errEl, staleMsg);
+    if (!plan) {
+      const avail = fmtMin(Math.max(0, D));
+      return showError(errEl, t[S][E] === Infinity
+        ? 'Google nie znalazł trasy z punktu startu do celu w tym trybie. Spróbuj innego trybu.'
+        : `Nie zdążysz nawet prosto do celu: dojazd zajmuje ${fmtMin(t[S][E])}, a po odjęciu zapasu masz ${avail}.`);
+    }
+
+    btn.textContent = 'Sprawdzam trasę odcinek po odcinku…';
+    if (token !== runToken) return showError(errEl, staleMsg);
+    const timeline = await confirmLegs(plan.order, cands, departMs);
+    if (token !== runToken) return showError(errEl, staleMsg);
+    renderResult({ plan, exact, cands, ranked, timeline, departMs, deadlineMs, date });
+  } catch (e) {
+    showError(errEl, token !== runToken ? staleMsg : serviceMessage(e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
+// Macierz liczona jest na godzinę wyjścia, a rozkład jazdy zależy od pory, więc każdy odcinek liczymy na jego prawdziwą godzinę.
+async function confirmLegs(order, cands, departMs) {
+  const stops = [];
+  let clock = departMs, from = state.start;
+  const warnings = new Set(), paths = [];
+  for (const idx of order) {
+    const shop = cands[idx].shop;
+    const leg = await api().leg(from, shop, state.mode, clock);
+    if (!leg) throw new Error(`brak trasy do „${shop.name}”`);
+    leg.warnings.forEach(w => warnings.add(w));
+    paths.push(leg.path);
+    const departLeg = clock, arrive = clock + leg.sec * 1000;
+    const openRel = clockToRel(shop.open, departMs), closeRel = clockToRel(shop.close, departMs);
+    const begin = Math.max(arrive, openRel === null ? arrive : departMs + openRel * 1000);
+    const leave = begin + shop.visitMin * 60000;
+    stops.push({ shop, score: cands[idx].score, from, departLeg, arrive, begin, leave, travelSec: leg.sec, lines: leg.lines || [],
+                 closedLate: closeRel !== null && leave > departMs + closeRel * 1000 });
+    clock = leave;
+    from = shop;
+  }
+  const last = await api().leg(from, state.dest, state.mode, clock);
+  if (!last) throw new Error('brak trasy do celu');
+  last.warnings.forEach(w => warnings.add(w));
+  paths.push(last.path);
+  return { stops, lastFrom: from, lastDepart: clock, lastSec: last.sec, lastLines: last.lines || [], end: clock + last.sec * 1000, paths, warnings: [...warnings] };
+}
+
+function navUrl(a, b) {
+  const q = p => `${p.lat},${p.lng}`;
+  return `https://www.google.com/maps/dir/?api=1&origin=${q(a)}&destination=${q(b)}&travelmode=${MODE_URL[state.mode]}`;
+}
+
+function renderResult({ plan, exact, cands, ranked, timeline, departMs, deadlineMs, date }) {
+  const { stops, end } = timeline;
+  const margin = (deadlineMs - end) / 1000;
+  $('resTotal').textContent = fmtScore(plan.sum);
+  $('resSummary').textContent = stops.length
+    ? `${stops.length} ${shopsWord(stops.length)}, ${MODE_WORDS[state.mode]}. Na miejscu o ${fmtTime(end)}${margin >= 0 ? `, ${fmtMin(margin)} przed czasem` : ''}.`
+    : `Nie zmieści się żaden lumpeks. Prosto do celu ${MODE_WORDS[state.mode]} dotrzesz o ${fmtTime(end)}.`;
+
+  const warn = [];
+  if (end > deadlineMs) warn.push(`Po przeliczeniu odcinków na ich rzeczywiste godziny dotrzesz o ${fmtTime(end)}, czyli ${fmtMin(-margin)} po czasie. Zwiększ zapas i policz jeszcze raz.`);
+  stops.filter(s => s.closedLate).forEach(s => warn.push(`„${s.shop.name}” zamyka się przed końcem Twojej wizyty. Zwiększ zapas i policz jeszcze raz.`));
+  $('resWarn').innerHTML = warn.map(w => `<div class="err">${esc(w)}</div>`).join('');
+
+  const legLink = (a, b) => ` · <a href="${esc(navUrl(a, b))}" target="_blank" rel="noopener">Nawiguj</a>`;
+  const lineText = lines => lines.length ? ` · linia ${esc(lines.join(', '))}` : '';
+  const rows = [`<li><time>${fmtTime(departMs)}</time><div><strong>Wyjście</strong><div class="hint">${esc(state.start.name)}</div></div></li>`];
+  stops.forEach((s, i) => {
+    const wait = s.begin - s.arrive;
+    rows.push(`<li><time>${fmtTime(s.arrive)}</time><div>
+      <strong>${i + 1}. ${esc(s.shop.name)}</strong> <span class="hint">ocena ${fmtScore(s.score)}</span>
+      <div class="travel">Dojazd ${fmtMin(s.travelSec)}${lineText(s.lines)}${legLink(s.from, s.shop)}</div>
+      <div class="hint">${wait > 0 ? `Czekasz na otwarcie do ${fmtTime(s.begin)}. ` : ''}Wychodzisz o ${fmtTime(s.leave)}.</div>
+    </div></li>`);
+  });
+  rows.push(`<li><time>${fmtTime(end)}</time><div><strong>${esc(state.dest.name)}</strong>
+    <div class="travel">Dojazd ${fmtMin(timeline.lastSec)}${lineText(timeline.lastLines)}${legLink(timeline.lastFrom, state.dest)}</div></div></li>`);
+  $('resSteps').innerHTML = rows.join('');
+
+  // Link do całej trasy: Google nie obsługuje przystanków pośrednich w komunikacji.
+  const canLinkAll = state.mode !== 'TRANSIT' && stops.length && stops.length <= 9;
+  $('resAll').hidden = !canLinkAll;
+  if (canLinkAll) {
+    const way = stops.map(s => `${s.shop.lat},${s.shop.lng}`).join('|');
+    $('resAll').innerHTML = `<a href="${esc(navUrl(state.start, state.dest))}&waypoints=${esc(encodeURIComponent(way))}" target="_blank" rel="noopener">Otwórz całą trasę w Google Maps</a>`;
+  }
+
+  const visited = new Set(stops.map(s => s.shop.id));
+  const skipped = [];
+  ranked.filter(x => !visited.has(x.shop.id)).forEach((x, i) => {
+    const out = !cands.some(c => c.shop.id === x.shop.id);
+    skipped.push(`${esc(x.shop.name)} (${fmtScore(x.score)}): ${out ? `poza ${MAX_SOLVER_SHOPS} najlepszymi, nie był liczony` : 'nie mieści się w czasie'}`);
+  });
+  state.shops.filter(s => s.active && scoreOn(s, date) <= 0).forEach(s => skipped.push(`${esc(s.name)}: ocena spadła do 0`));
+  $('resSkipped').innerHTML = skipped.length ? `<strong>Poza trasą</strong><br>${skipped.join('<br>')}` : '';
+
+  const beta = state.mode !== 'TRANSIT' && state.key ? ['Trasy piesze i rowerowe Google są w wersji beta i mogą nie mieć chodników ani ścieżek rowerowych. Uważaj na drodze.'] : [];
+  const partial = exact ? [] : [`Sprawdzono limit ${TRANSIT_CHECK_LIMIT} połączeń, więc to najlepsza znaleziona trasa, ale może istnieć lepsza.`];
+  $('resBeta').textContent = [...partial, ...beta, ...timeline.warnings].join(' ');
+  $('resBeta').hidden = !$('resBeta').textContent;
+
+  $('result').hidden = false;
+  drawMap(stops, timeline.paths).catch(() => { $('map').hidden = true; });
+  $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+let gmap = null, overlays = [];
+
+let leafletReady = null;
+
+function loadLeaflet() {
+  if (leafletReady) return leafletReady;
+  leafletReady = new Promise((resolve, reject) => {
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+    document.head.appendChild(css);
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    s.onload = resolve;
+    s.onerror = () => { leafletReady = null; reject(new Error('Leaflet')); };
+    document.head.appendChild(s);
+  });
+  return leafletReady;
+}
+
+async function drawMap(stops, paths) {
+  $('map').hidden = false;
+  return state.key ? drawGoogleMap(stops, paths) : drawOsmMap(stops, paths);
+}
+
+let osmMap = null, osmLayer = null;
+
+async function drawOsmMap(stops, paths) {
+  await loadLeaflet();
+  if (!osmMap) {
+    osmMap = L.map('map');
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19, subdomains: 'abcd',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }).addTo(osmMap);
+    osmLayer = L.layerGroup().addTo(osmMap);
+  }
+  osmLayer.clearLayers();
+  const bounds = L.latLngBounds([]);
+  paths.forEach(path => {
+    if (!path.length) return;
+    const line = L.polyline(path, { color: '#1f6b4f', weight: 4, opacity: .85 }).addTo(osmLayer);
+    bounds.extend(line.getBounds());
+  });
+  const pin = (p, label, title) => {
+    bounds.extend([p.lat, p.lng]);
+    L.marker([p.lat, p.lng], { title, icon: L.divIcon({ className: 'pin', html: label, iconSize: [26, 26] }) }).addTo(osmLayer);
+  };
+  pin(state.start, 'S', state.start.name);
+  stops.forEach((s, i) => pin(s.shop, String(i + 1), s.shop.name));
+  pin(state.dest, 'C', state.dest.name);
+  osmMap.invalidateSize();
+  osmMap.fitBounds(bounds, { padding: [30, 30] });
+}
+
+async function drawGoogleMap(stops, paths) {
+  const el = $('map');
+  if (!gmap) gmap = new google.maps.Map(el, { center: toLatLng(state.start), zoom: 13, mapTypeControl: false, streetViewControl: false });
+  overlays.forEach(o => o.setMap(null));
+  const bounds = new google.maps.LatLngBounds();
+  const pin = (p, label, title) => {
+    bounds.extend(toLatLng(p));
+    overlays.push(new google.maps.Marker({ map: gmap, position: toLatLng(p), label, title }));
+  };
+  overlays = [];
+  pin(state.start, 'S', state.start.name);
+  stops.forEach((s, i) => pin(s.shop, String(i + 1), s.shop.name));
+  pin(state.dest, 'C', state.dest.name);
+  paths.forEach(path => {
+    if (!path.length) return;
+    path.forEach(p => bounds.extend(p));
+    overlays.push(new google.maps.Polyline({ map: gmap, path, strokeColor: '#1f6b4f', strokeWeight: 4, strokeOpacity: .85 }));
+  });
+  gmap.fitBounds(bounds, 40);
+}
+
+/* ---------- Start ---------- */
+
+function showApp() {
+  $('credits').hidden = !!state.key;
+  $('keyToggle').textContent = state.key ? 'Wróć na darmowe mapy' : 'Mam klucz Google Maps';
+  $('shopHint').hidden = !!state.key;
+  if (!state.deadline || new Date(state.deadline).getTime() < Date.now()) {
+    const d = new Date(Date.now() + 3 * 36e5);
+    d.setMinutes(0, 0, 0);
+    state.deadline = toLocalInput(d);
+  }
+  if (state.departure && new Date(state.departure).getTime() < Date.now()) state.departure = '';
+  renderTrip();
+  renderShops();
+}
+
+$('keySave').onclick = () => {
+  const key = $('keyInput').value.trim();
+  if (!key) return showError($('keyErr'), 'Wklej klucz API.');
+  state.key = key;
+  save();
+  location.reload();
+};
+$('keyToggle').onclick = () => {
+  if (!state.key) { $('keyCard').hidden = !$('keyCard').hidden; return; }
+  state.key = '';
+  save();
+  location.reload();
+};
+$('modeSeg').onclick = e => {
+  if (!e.target.dataset.mode) return;
+  state.mode = e.target.dataset.mode;
+  changed();
+  renderTrip();
+};
+$('deadline').onchange = e => { state.deadline = e.target.value; changed(); };
+$('departure').onchange = e => { state.departure = e.target.value; changed(); renderShops(); };
+$('buffer').onchange = e => { state.buffer = Math.max(0, parseInt(e.target.value, 10) || 0); changed(); };
+$('findBtn').onclick = findRoute;
+
+buildDialogControls();
+showApp();
+</script>
+</body>
+</html>
