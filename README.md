@@ -11,6 +11,7 @@ To niekomercyjny projekt do użytku prywatnego. Bez logowania dane zostają w pr
 - Trasy pieszo i rowerem: [FOSSGIS](https://routing.openstreetmap.de/about.html)
 - Komunikacja: [Transitous](https://transitous.org/api/) i [jego źródła danych](https://transitous.org/sources/)
 - Kafelki mapy: [CARTO](https://carto.com/attributions), biblioteka [Leaflet](https://leafletjs.com/)
+- Gotowa lista lumpeksów z Wrocławia: OpenStreetMap (ODbL) i [przewodnik wroclaw.pl](https://www.wroclaw.pl/dla-mieszkanca/lumpeksy-we-wroclawiu-tutaj-kupisz-ubrania-w-atrakcyjnych-cenach), stan z listopada 2026
 - Logowanie i zapis: Google Firebase
 - Opcjonalnie: Google Maps Platform, z własnym kluczem użytkownika
 

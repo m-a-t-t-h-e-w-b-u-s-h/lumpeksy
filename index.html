@@ -53,6 +53,10 @@ button:disabled { opacity: .55; cursor: default; }
 .results small { display: block; color: var(--muted); }
 .shop { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--line); }
 .shop.off { opacity: .55; }
+.group { margin-top: 10px; border-top: 1px solid var(--line); }
+.group summary { cursor: pointer; font-weight: 600; padding: 10px 0; }
+#importBox { margin-top: 12px; }
+@media (max-width: 560px) { .grid2.stack { grid-template-columns: minmax(0, 1fr); } }
 .shop-body { flex: 1; min-width: 0; }
 .shop-body strong { display: block; overflow-wrap: anywhere; }
 .shop-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; font-size: .875rem; }
@@ -105,7 +109,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
         <div class="label">Dokąd</div>
         <div id="destSlot"></div>
       </div>
-      <div class="grid2 field">
+      <div class="grid2 field stack">
         <div>
           <label for="deadline">Mam być do</label>
           <input type="datetime-local" id="deadline">
@@ -132,8 +136,12 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 
     <section class="card">
       <h2>Lumpeksy</h2>
-      <p class="hint" id="shopHint">Wpisz np. „second hand Warszawa” albo adres sklepu. W OpenStreetMap nie ma wszystkich lumpeksów, więc jeśli sklepu nie ma, wyszukaj jego adres.</p>
+      <p class="hint" id="shopHint">Wpisz np. „second hand Wrocław” albo adres sklepu. W OpenStreetMap nie ma wszystkich lumpeksów, więc jeśli sklepu nie ma, wyszukaj jego adres.</p>
       <div id="shopSlot"></div>
+      <div id="importBox" hidden>
+        <button type="button" id="importBtn"></button>
+        <p class="hint" style="margin-top:6px">Lista pochodzi z OpenStreetMap i wroclaw.pl, więc może być niepełna albo nieaktualna. Sklepy trafią do działu „Do oceny” i wejdą do trasy dopiero po ocenieniu.</p>
+      </div>
       <div id="shopList" style="margin-top:12px"></div>
     </section>
 
@@ -169,6 +177,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
       Trasy pieszo i rowerem: <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS</a>.
       Komunikacja: <a href="https://transitous.org/sources/" target="_blank" rel="noopener">Transitous i jego źródła</a>.
       Kafelki: © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>.
+      Lista lumpeksów z Wrocławia: OpenStreetMap i <a href="https://www.wroclaw.pl/dla-mieszkanca/lumpeksy-we-wroclawiu-tutaj-kupisz-ubrania-w-atrakcyjnych-cenach" target="_blank" rel="noopener">wroclaw.pl</a>.
       Kod i kontakt: <a href="https://github.com/m-a-t-t-h-e-w-b-u-s-h/lumpeksy" target="_blank" rel="noopener">GitHub</a> (licencja MIT).
       Po zalogowaniu lista sklepów jest przechowywana w Google Firebase.
     </p>
@@ -177,10 +186,16 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 
 <dialog id="shopDlg">
   <form method="dialog" id="shopForm">
-    <h2 id="dlgName" style="overflow-wrap:anywhere"></h2>
+    <h2>Lumpeks</h2>
     <div class="field">
-      <div class="label">Ocena dziś (1–10)</div>
+      <label for="dlgName">Nazwa</label>
+      <input type="text" id="dlgName" maxlength="80">
+      <div class="hint" id="dlgAddress" style="margin-top:4px;overflow-wrap:anywhere"></div>
+    </div>
+    <div class="field">
+      <div class="label">Ocena w dniu dostawy (1–10)</div>
       <div class="seg tight" id="dlgRating"></div>
+      <div class="hint">Bez dnia dostawy to ocena na dziś.</div>
     </div>
     <div class="field">
       <div class="label">O ile spada każdego dnia</div>
@@ -205,6 +220,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
       <input type="number" id="dlgVisit" min="1" step="5">
     </div>
     <div class="label">Godziny otwarcia (opcjonalnie)</div>
+    <div class="hint" id="dlgWeek" style="margin-bottom:4px"></div>
     <div class="grid2 field">
       <input type="time" id="dlgOpen" aria-label="Otwarcie">
       <input type="time" id="dlgClose" aria-label="Zamknięcie">
@@ -219,7 +235,10 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 
 <script>
 const STORE = 'lumpeksy.v1';
-const MAX_SOLVER_SHOPS = 16;
+const SOLVER_SHOPS = { WALKING: 18, BICYCLING: 18, TRANSIT: 16 };
+const POOL_SHOPS = 40;
+const MAX_SAVED_SHOPS = 200;
+const WROCLAW_SHOPS = [{"id":"node/957315405","name":"Revia","address":"Kasprowicza 1","lat":51.1355603,"lng":17.0373645},{"id":"node/963258771","name":"Jomo","address":"","lat":51.1348123,"lng":17.0384654},{"id":"node/1368362131","name":"Dars","address":"Hugona Kołłątaja 35","lat":51.1036324,"lng":17.0375203,"week":[null,"10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-14:00"]},{"id":"node/2885210560","name":"Lumpeks bez nazwy","address":"okolice: Radosna","lat":51.0933233,"lng":17.0250792},{"id":"node/2892013604","name":"Lotos","address":"okolice: Marszałka Józefa Piłsudskiego","lat":51.1047503,"lng":17.0212865},{"id":"node/3771255885","name":"Łapciuch","address":"Plac Kościuszki 19","lat":51.1022622,"lng":17.0308685},{"id":"node/3771255930","name":"Łapciuch","address":"Plac Legionów 14","lat":51.1041097,"lng":17.0220491},{"id":"node/3877345555","name":"Vintage Shop","address":"okolice: Marszałka Józefa Piłsudskiego","lat":51.1019193,"lng":17.027509},{"id":"node/3909275250","name":"Second Hand from London","address":"Podwale 37-38","lat":51.104045,"lng":17.0302468},{"id":"node/4461408698","name":"Stylówka","address":"bulwar Dedala 3a","lat":51.126332,"lng":16.9670489},{"id":"node/4498788890","name":"Kopciuszek","address":"okolice: Gajowa","lat":51.0880568,"lng":17.0406587,"week":[null,"10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-14:00"]},{"id":"node/4502776133","name":"F.H. Dars","address":"okolice: Plac Legionów","lat":51.103626,"lng":17.0226209},{"id":"node/4523072390","name":"Margo","address":"Plac Nowy Targ 27","lat":51.1108257,"lng":17.0393279,"week":[null,"10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-16:00"]},{"id":"node/4682437272","name":"Ledis","address":"okolice: Gajowa","lat":51.091499399999996,"lng":17.0402579},{"id":"node/4842041359","name":"Dars","address":"okolice: Sądowa","lat":51.1046389,"lng":17.0227798,"week":[null,"10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-14:00"]},{"id":"node/5117930168","name":"Ze Skandynawii","address":"okolice: Sądowa","lat":51.1054368,"lng":17.0230402},{"id":"node/5313573611","name":"Lumpeks bez nazwy","address":"okolice: Plac Icchaka Lejba Pereca","lat":51.0992208,"lng":17.0071921},{"id":"node/5652243468","name":"Ankira","address":"okolice: Benedyktyńska","lat":51.1156476,"lng":17.051414,"week":[null,"10:00-19:00","10:00-19:00","10:00-16:00","10:00-19:00","10:00-19:00","10:00-16:00"]},{"id":"node/5972788295","name":"Fashion Outlet","address":"okolice: Marszałka Józefa Piłsudskiego","lat":51.1018344,"lng":17.0264825},{"id":"node/6326161566","name":"Taniarmanii","address":"Ładna 9","lat":51.1136057,"lng":17.0559754,"week":[null,"10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","08:00-14:00"]},{"id":"node/6343622538","name":"Skandynawska Odzież Używana","address":"okolice: Twarda","lat":51.0969257,"lng":16.9846226},{"id":"node/6764599517","name":"Vive Profit","address":"okolice: Paprotna","lat":51.1515283,"lng":17.0254694},{"id":"node/6977700296","name":"Vena","address":"Świdnicka 30","lat":51.1060467,"lng":17.0317586,"week":[null,"09:00-18:00","09:00-18:00","09:00-18:00","09:00-18:00","09:00-18:00","09:00-15:00"]},{"id":"node/7089677852","name":"Vena","address":"Dubois 12","lat":51.1171839,"lng":17.0322681,"week":[null,"09:00-18:00","09:00-18:00","09:00-18:00","09:00-18:00","09:00-18:00","09:00-14:00"]},{"id":"node/7089677854","name":"tylko modne.pl","address":"okolice: Stanisława Dubois","lat":51.1170663,"lng":17.0326516,"week":[null,"10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-14:00"]},{"id":"node/7251425509","name":"Egoist-a-Porter","address":"okolice: Świętego Antoniego","lat":51.1092638,"lng":17.0248383},{"id":"node/7268849251","name":"Fox","address":"Marszałka Józefa Piłsudskiego 91a","lat":51.1003353,"lng":17.0333952},{"id":"node/7872537522","name":"Odzież Damska i Męska","address":"okolice: Generała Romualda Traugutta","lat":51.1021445,"lng":17.051529},{"id":"node/7932603823","name":"Bazar Miejski","address":"okolice: Henryka Brodatego","lat":51.1185431,"lng":17.0331499,"week":["12:00-18:00","12:00-20:00","12:00-20:00","12:00-20:00","12:00-20:00","12:00-20:00","10:00-18:00"]},{"id":"node/8104080366","name":"Lumpeks bez nazwy","address":"okolice: Sielska","lat":51.139879,"lng":16.9630616},{"id":"node/8515579618","name":"Margo","address":"Ładna 16","lat":51.1139488,"lng":17.0554723,"week":[null,"10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-16:00"]},{"id":"node/8515585217","name":"Margo","address":"Kilińskiego 21","lat":51.1188348,"lng":17.0403446,"week":[null,"10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-16:00"]},{"id":"node/9123861805","name":"Lumpex de Lux","address":"Popowicka 26","lat":51.1258508,"lng":16.9968516},{"id":"node/9136257024","name":"Jomo","address":"okolice: Wojrowicka","lat":51.1146483,"lng":16.9614767},{"id":"node/9451424967","name":"Pomagacz.org","address":"okolice: Kardynała Stefana Wyszyńskiego","lat":51.1184191,"lng":17.0510436,"week":[null,"10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00",null]},{"id":"node/9556047589","name":"Pre-Loved","address":"Świętokrzyska 39A","lat":51.1181474,"lng":17.0452775},{"id":"node/9876343616","name":"Babu Ciuchy","address":"Jedności Narodowej 49","lat":51.1193789,"lng":17.0391634},{"id":"node/9876348924","name":"Lumpeks bez nazwy","address":"okolice: Jana Kilińskiego","lat":51.1189489,"lng":17.0402261,"week":[null,"09:00-17:00","09:00-17:00","09:00-17:00","09:00-17:00","09:00-17:00","09:00-13:00"]},{"id":"node/10595100868","name":"Butik Cyrkularny","address":"okolice: Piastowska","lat":51.1123855,"lng":17.0602181,"week":[null,"09:00-21:00","09:00-21:00","09:00-21:00","09:00-21:00","09:00-21:00","09:00-21:00"]},{"id":"node/11358139641","name":"ŁAPciuch","address":"Białowieska 24A","lat":51.1238175,"lng":16.9902335},{"id":"node/11518701110","name":"Revia","address":"Bacciarellego 10b","lat":51.1053676,"lng":17.112201,"week":[null,"10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-14:00"]},{"id":"node/11933763864","name":"F.H. Dars","address":"okolice: Hugona Kołłątaja","lat":51.1003579,"lng":17.0359158},{"id":"node/12146607859","name":"Ankira","address":"okolice: Marszałka Józefa Piłsudskiego","lat":51.1017756,"lng":17.0279676},{"id":"node/12192719113","name":"Ciuszek","address":"okolice: plac Powstańców Wielkopolskich","lat":51.124256,"lng":17.0339316},{"id":"node/12238975069","name":"Komis Design","address":"okolice: Tadeusza Kościuszki","lat":51.1023115,"lng":17.0364114},{"id":"node/12300029724","name":"Kreator","address":"okolice: Hugona Kołłątaja","lat":51.1024484,"lng":17.0370934,"week":[null,"10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-18:00","10:00-14:00"]},{"id":"node/12476392552","name":"Londyński Styl","address":"okolice: Kleczkowska","lat":51.1267656,"lng":17.0357035},{"id":"node/12532330348","name":"Lumpeks bez nazwy","address":"okolice: Sokola","lat":51.0827065,"lng":17.0066211},{"id":"node/12616310522","name":"Ankira","address":"okolice: Romana Dmowskiego","lat":51.1166262,"lng":17.0254383},{"id":"node/13275865039","name":"Kreator","address":"okolice: Legnicka","lat":51.1239503,"lng":16.9898884},{"id":"node/13520479177","name":"Lumpeks bez nazwy","address":"okolice: Widna","lat":51.085111,"lng":17.0446388},{"id":"node/13923544903","name":"Stylówka","address":"okolice: Żernicka","lat":51.1236837,"lng":16.9229927},{"id":"node/14329839534","name":"Lumpeks bez nazwy","address":"okolice: Kwiska","lat":51.1218092,"lng":16.9808656},{"id":"way/100925131","name":"Margo","address":"Hubska 80","lat":51.0893641,"lng":17.0453786,"week":[null,"10:00-18:00","10:00-18:00","10:00-18:00",null,"09:00-16:00","10:00-16:00"]},{"id":"wroclawpl/1","name":"Mufka Second Hand","address":"Dubois 6","lat":51.1169951,"lng":17.0327544},{"id":"wroclawpl/2","name":"ŁAPciuch","address":"Strzegomska 206","lat":51.1114847,"lng":16.9590855},{"id":"wroclawpl/3","name":"Waam","address":"Borowska 1","lat":51.0986211,"lng":17.0329105},{"id":"wroclawpl/4","name":"Revia","address":"Litewska 16","lat":51.1430491,"lng":17.1265286},{"id":"wroclawpl/5","name":"Vena","address":"Piłsudskiego 66","lat":51.101143,"lng":17.0306441},{"id":"wroclawpl/6","name":"Vena","address":"Oławska 9","lat":51.108459,"lng":17.0345777},{"id":"wroclawpl/7","name":"Vena","address":"Dokerska 6","lat":51.1385379,"lng":16.9644384},{"id":"wroclawpl/8","name":"Vena","address":"Średzka 25","lat":51.1455462,"lng":16.8690253},{"id":"wroclawpl/9","name":"Cindy Vintage","address":"Pomorska 15","lat":51.1176567,"lng":17.0321719},{"id":"wroclawpl/10","name":"Rudy Biznes Vintage Shop","address":"Wita Stwosza 12a","lat":51.1098444,"lng":17.0361923},{"id":"wroclawpl/11","name":"VINTAGE Straganik","address":"Chrobrego 6","lat":51.120942,"lng":17.0348543},{"id":"wroclawpl/12","name":"Stay With Me Clothes","address":"Plac Orląt Lwowskich 2","lat":51.1086586,"lng":17.0201813}];
 const DAY_LABELS = [[1,'Pn'],[2,'Wt'],[3,'Śr'],[4,'Cz'],[5,'Pt'],[6,'So'],[0,'Nd']];
 const MODE_WORDS = { WALKING: 'pieszo', BICYCLING: 'rowerem', TRANSIT: 'komunikacją' };
 const MODE_URL = { WALKING: 'walking', BICYCLING: 'bicycling', TRANSIT: 'transit' };
@@ -241,17 +260,22 @@ const shopsWord = n => n === 1 ? 'lumpeks' : (n % 10 >= 2 && n % 10 <= 4 && (n %
 
 const dayNum = str => { const [y, m, d] = str.split('-').map(Number); return Date.UTC(y, m - 1, d) / 864e5; };
 
-// Ocena liczona jest od dnia jej wystawienia albo od ostatniej dostawy, zależnie co było później.
-function daysSinceReset(shop, dateStr) {
-  const d = dayNum(dateStr);
-  let ref = dayNum(shop.ratedAt);
-  if (shop.days.length) {
-    const dow = new Date(d * 864e5).getUTCDay();
-    for (let back = 0; back < 7; back++) {
-      if (shop.days.includes(((dow - back) % 7 + 7) % 7)) { ref = Math.max(ref, d - back); break; }
-    }
+const dowOf = str => new Date(dayNum(str) * 864e5).getUTCDay();
+
+// Numer dnia ostatniej dostawy w danym dniu lub przed nim; null, gdy sklep nie ma dnia dostawy.
+function lastDelivery(shop, dateStr) {
+  if (!shop.days.length) return null;
+  const d = dayNum(dateStr), dow = dowOf(dateStr);
+  for (let back = 0; back < 7; back++) {
+    if (shop.days.includes(((dow - back) % 7 + 7) % 7)) return d - back;
   }
-  return Math.max(0, d - ref);
+  return null;
+}
+
+// Ocena to wartość w dniu dostawy. Bez dnia dostawy spada od dnia jej wystawienia.
+function daysSinceReset(shop, dateStr) {
+  const last = lastDelivery(shop, dateStr);
+  return Math.max(0, dayNum(dateStr) - (last === null ? dayNum(shop.ratedAt) : last));
 }
 
 function scoreOn(shop, dateStr) {
@@ -260,6 +284,25 @@ function scoreOn(shop, dateStr) {
     ? shop.base * Math.pow(shop.decayValue, days)
     : Math.max(0, shop.base - shop.decayValue * days);
 }
+
+// Odwiedzony do najbliższej dostawy po dniu wizyty; bez dnia dostawy do ręcznego cofnięcia.
+function isVisited(shop, dateStr) {
+  if (!shop.visitedOn) return false;
+  const last = lastDelivery(shop, dateStr);
+  return last === null || last <= dayNum(shop.visitedOn);
+}
+
+// Godziny wpisane ręcznie mają pierwszeństwo przed godzinami z mapy.
+function hoursOn(shop, dateStr) {
+  if (shop.open || shop.close) return { open: shop.open, close: shop.close, closed: false };
+  if (!shop.week) return { open: '', close: '', closed: false };
+  const today = shop.week[dowOf(dateStr)];
+  if (!today) return { open: '', close: '', closed: true };
+  const [open, close] = today.split('-');
+  return { open, close, closed: false };
+}
+
+const canRoute = (shop, dateStr) => shop.active && !shop.disliked && shop.base > 0 && !isVisited(shop, dateStr) && !hoursOn(shop, dateStr).closed;
 
 /* ---------- Wybór trasy: programowanie dynamiczne po podzbiorach ---------- */
 
@@ -304,6 +347,52 @@ function solve({ score, visit, open, close, t, D }) {
     last = prev;
   }
   return { order, sum: best.sum, arrive: best.arrive };
+}
+
+function alternate(a, b, limit) {
+  const out = new Set();
+  for (let i = 0; out.size < limit && i < a.length; i++) { out.add(a[i]); if (out.size < limit) out.add(b[i]); }
+  return [...out];
+}
+
+function shortlist(items, limit, costOf) {
+  if (items.length <= limit) return items;
+  const byValue = [...items].sort((x, y) => y.score / costOf(y) - x.score / costOf(x));
+  return alternate(items, byValue, limit);
+}
+
+// Dokładne liczenie mieści około 18 sklepów. Gdy jest ich więcej, zaczynamy od najlepiej ocenianych i najbardziej
+// opłacalnych, a potem podmieniamy je na te, które najmniej wydłużają znalezioną trasę.
+function pickCandidates(inp, limit) {
+  const { score, visit, open, close, t, D } = inp, n = score.length, S = n, E = n + 1;
+  const costOf = i => t[S][i] + visit[i] + t[i][E];
+  const reachable = Array.from({ length: n }, (_, i) => i).filter(i => costOf(i) <= D);
+  if (reachable.length <= limit) return reachable;
+  const solveOn = ids => {
+    const map = [...ids, S, E];
+    const plan = solve({
+      score: ids.map(i => score[i]), visit: ids.map(i => visit[i]), open: ids.map(i => open[i]), close: ids.map(i => close[i]),
+      t: map.map(a => map.map(b => t[a][b])), D
+    });
+    return plan && { sum: plan.sum, order: plan.order.map(k => ids[k]) };
+  };
+  const byScore = [...reachable].sort((a, b) => score[b] - score[a]);
+  const byValue = [...reachable].sort((a, b) => score[b] / costOf(b) - score[a] / costOf(a));
+  let chosen = alternate(byScore, byValue, limit), best = solveOn(chosen);
+  for (let round = 0; best && round < 4; round++) {
+    const stops = [S, ...best.order, E];
+    const insertCost = i => Math.min(...stops.slice(1).map((b, k) => t[stops[k]][i] + visit[i] + t[i][b] - t[stops[k]][b]));
+    const others = reachable.filter(i => !best.order.includes(i))
+      .map(i => ({ i, value: score[i] / Math.max(insertCost(i), 60) }))
+      .sort((a, b) => b.value - a.value).map(x => x.i);
+    const next = [...best.order, ...others].slice(0, limit);
+    if (next.every(i => chosen.includes(i))) break;
+    const plan = solveOn(next);
+    if (!plan || plan.sum <= best.sum + 1e-9) break;
+    best = plan;
+    chosen = next;
+  }
+  return chosen;
 }
 
 /* ---------- Dane Google ---------- */
@@ -817,35 +906,91 @@ function renderShops() {
       openShopDialog(p, true);
     }
   });
+  renderImport();
   const date = tripDateStr(), list = $('shopList');
+  list.querySelectorAll('details').forEach(el => { openGroups[el.open ? 'add' : 'delete'](el.dataset.key); });
   if (!state.shops.length) {
     list.innerHTML = '<p class="hint">Na liście nie ma jeszcze żadnego sklepu. Wyszukaj pierwszy.</p>';
     return;
   }
-  list.innerHTML = state.shops.map(s => {
+  const groups = { route: [], unrated: [], visited: [], disliked: [] };
+  state.shops.forEach(s => groups[s.disliked ? 'disliked' : isVisited(s, date) ? 'visited' : s.base ? 'route' : 'unrated'].push(s));
+  groups.route.sort((a, b) => scoreOn(b, date) - scoreOn(a, date));
+  const section = (key, title) => groups[key].length
+    ? `<details class="group" data-key="${key}"${openGroups.has(key) || (key === 'unrated' && !groups.route.length) ? ' open' : ''}>
+        <summary>${title} (${groups[key].length})</summary>${groups[key].map(s => shopRow(s, key, date)).join('')}</details>`
+    : '';
+  list.innerHTML = groups.route.map(s => shopRow(s, 'route', date)).join('')
+    + section('unrated', 'Do oceny') + section('visited', 'Odwiedzone') + section('disliked', 'Nie lubię');
+}
+
+const openGroups = new Set();
+
+const dayNames = days => DAY_LABELS.filter(([v]) => days.includes(v)).map(([, l]) => l).join(', ');
+
+function shopRow(s, group, date) {
+  const action = (attr, text) => `<button class="link" type="button" data-${attr}="${esc(s.id)}">${text}</button>`;
+  const address = s.address ? `<div class="hint" style="overflow-wrap:anywhere">${esc(s.address)}</div>` : '';
+  let tag = '–', info = '', actions;
+  if (group === 'disliked') {
+    tag = '✕';
+    info = 'Nie wchodzi do trasy, dopóki tego nie cofniesz.';
+    actions = [action('undislike', 'Jednak lubię'), action('del', 'Usuń')];
+  } else if (group === 'visited') {
+    tag = '✓';
+    info = s.days.length ? `Wróci do trasy w dniu dostawy (${dayNames(s.days)}).` : 'Nie ma dnia dostawy, więc zostaje tu, dopóki tego nie cofniesz.';
+    actions = [action('unvisit', 'Jednak nieodwiedzony'), action('edit', 'Edytuj')];
+  } else if (group === 'unrated') {
+    actions = [action('edit', 'Oceń'), action('dislike', 'Nie lubię'), action('del', 'Usuń')];
+  } else {
+    const hours = hoursOn(s, date);
     const decay = s.decayType === 'times' ? `×${fmtScore(s.decayValue)}` : `−${fmtScore(s.decayValue)}`;
-    const days = s.days.length ? DAY_LABELS.filter(([v]) => s.days.includes(v)).map(([, l]) => l).join(', ') : 'nie podano';
-    const hours = s.open || s.close ? ` · ${esc(s.open || '…')}–${esc(s.close || '…')}` : '';
-    return `<div class="shop${s.active ? '' : ' off'}">
-      <div class="tag" title="Ocena w dniu wyjścia">${fmtScore(scoreOn(s, date))}</div>
-      <div class="shop-body">
-        <strong>${esc(s.name)}</strong>
-        <div class="hint">Ocena ${s.base}, spadek ${decay} dziennie · dostawa: ${days} · ${s.visitMin} min${hours}</div>
-        <div class="shop-actions">
-          <button class="link" type="button" data-edit="${esc(s.id)}">Edytuj</button>
-          <button class="link" type="button" data-toggle="${esc(s.id)}">${s.active ? 'Pomiń tym razem' : 'Uwzględnij'}</button>
-          <button class="link" type="button" data-del="${esc(s.id)}">Usuń</button>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
+    const hourText = hours.closed ? ' · tego dnia zamknięte' : hours.open || hours.close ? ` · ${esc(hours.open || '…')}–${esc(hours.close || '…')}` : '';
+    tag = fmtScore(scoreOn(s, date));
+    info = `Ocena ${s.base}, spadek ${decay} dziennie · dostawa: ${s.days.length ? dayNames(s.days) : 'nie podano'} · ${s.visitMin} min${hourText}`;
+    actions = [action('edit', 'Edytuj'), action('visit', 'Odwiedzony'), action('dislike', 'Nie lubię'),
+      action('toggle', s.active ? 'Pomiń tym razem' : 'Uwzględnij'), action('del', 'Usuń')];
+  }
+  return `<div class="shop${group === 'route' && !s.active ? ' off' : ''}">
+    <div class="tag" title="Ocena w dniu wyjścia">${tag}</div>
+    <div class="shop-body">
+      <strong>${esc(s.name)}</strong>
+      ${address}
+      ${info ? `<div class="hint">${info}</div>` : ''}
+      <div class="shop-actions">${actions.join('')}</div>
+    </div>
+  </div>`;
 }
 
 $('shopList').onclick = e => {
-  const d = e.target.dataset, find = id => state.shops.find(s => s.id === id);
-  if (d.edit) openShopDialog(find(d.edit), false);
-  else if (d.toggle) { const s = find(d.toggle); s.active = !s.active; changed(); renderShops(); }
-  else if (d.del) { state.shops = state.shops.filter(s => s.id !== d.del); changed(); renderShops(); }
+  const d = e.target.dataset, s = state.shops.find(x => x.id === (d.edit || d.toggle || d.del || d.visit || d.unvisit || d.dislike || d.undislike));
+  if (!s) return;
+  if (d.edit) return openShopDialog(s, false);
+  if (d.toggle) s.active = !s.active;
+  else if (d.del) state.shops = state.shops.filter(x => x !== s);
+  else if (d.visit) s.visitedOn = toDateStr(new Date());
+  else if (d.unvisit) s.visitedOn = '';
+  else if (d.dislike) s.disliked = true;
+  else if (d.undislike) s.disliked = false;
+  changed();
+  renderShops();
+};
+
+function renderImport() {
+  const have = new Set(state.shops.map(s => s.id));
+  const missing = WROCLAW_SHOPS.filter(s => !have.has(s.id));
+  $('importBox').hidden = !missing.length;
+  $('importBtn').textContent = `Dodaj lumpeksy z Wrocławia (${missing.length})`;
+}
+
+$('importBtn').onclick = () => {
+  const have = new Set(state.shops.map(s => s.id));
+  const today = toDateStr(new Date());
+  const missing = WROCLAW_SHOPS.filter(s => !have.has(s.id)).slice(0, Math.max(0, MAX_SAVED_SHOPS - state.shops.length));
+  missing.forEach(s => state.shops.push({ ...s, base: 0, decayType: 'minus', decayValue: 1, days: [], visitMin: 30, open: '', close: '', active: true, ratedAt: today }));
+  openGroups.add('unrated');
+  changed();
+  renderShops();
 };
 
 /* ---------- Okno oceny lumpeksu ---------- */
@@ -856,12 +1001,19 @@ const DEFAULT_DECAY = { minus: 1, times: 0.8 };
 function openShopDialog(shop, isNew) {
   draftIsNew = isNew;
   draftOriginalBase = isNew ? null : shop.base;
-  const last = state.shops[state.shops.length - 1];
+  const last = [...state.shops].reverse().find(s => s.base);
   draft = isNew
     ? { ...shop, base: 0, decayType: last ? last.decayType : 'minus', decayValue: last ? last.decayValue : 1,
         days: [], visitMin: last ? last.visitMin : 30, open: '', close: '', active: true, ratedAt: toDateStr(new Date()) }
     : { ...shop, days: [...shop.days] };
-  $('dlgName').textContent = draft.name;
+  // Sklep z gotowej listy nie ma jeszcze oceny, więc startuje z ustawieniami ostatnio ocenionego.
+  if (!isNew && !shop.base && last) Object.assign(draft, { decayType: last.decayType, decayValue: last.decayValue, visitMin: last.visitMin });
+  $('dlgName').value = draft.name;
+  $('dlgAddress').textContent = draft.address || '';
+  $('dlgWeek').textContent = draft.week
+    ? `Z mapy: ${DAY_LABELS.map(([v, l]) => `${l} ${draft.week[v] ? draft.week[v].replace('-', '–') : 'zamknięte'}`).join(', ')}. Wpisz godziny poniżej tylko wtedy, gdy są inne.`
+    : '';
+  $('dlgWeek').hidden = !draft.week;
   $('dlgVisit').value = draft.visitMin;
   $('dlgDecay').value = draft.decayValue;
   $('dlgOpen').value = draft.open;
@@ -869,6 +1021,8 @@ function openShopDialog(shop, isNew) {
   showError($('dlgErr'), '');
   renderDialog();
   $('shopDlg').showModal();
+  // Bez tego na telefonie od razu wyskakuje klawiatura, choć zwykle zmienia się tylko ocenę.
+  if (document.activeElement) document.activeElement.blur();
 }
 
 function renderDialog() {
@@ -890,6 +1044,9 @@ function renderDialog() {
 function saveDialog() {
   const value = parseFloat($('dlgDecay').value), visit = parseInt($('dlgVisit').value, 10);
   const fail = msg => showError($('dlgErr'), msg);
+  const name = $('dlgName').value.trim();
+  if (!name) return fail('Podaj nazwę sklepu.');
+  draft.name = name;
   if (!draft.base) return fail('Wybierz ocenę od 1 do 10.');
   if (!(value >= 0)) return fail('Podaj wartość spadku.');
   if (draft.decayType === 'times' && (value <= 0 || value > 1)) return fail('Mnożnik musi być większy od 0 i nie większy niż 1, np. 0,8.');
@@ -961,28 +1118,47 @@ async function findRoute() {
 
   const date = toDateStr(new Date(departMs));
   const ranked = state.shops
-    .filter(s => s.active)
+    .filter(s => canRoute(s, date))
     .map(s => ({ shop: s, score: scoreOn(s, date) }))
     .filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score);
-  const cands = ranked.slice(0, MAX_SOLVER_SHOPS);
+  // Odległość w linii prostej i największa rozsądna prędkość dają czas, którego na pewno nie da się pobić.
+  const fastest = { WALKING: 7, BICYCLING: 30, TRANSIT: 40 }[state.mode];
+  const roughCost = x => (crowKm(state.start, x.shop) + crowKm(x.shop, state.dest)) / fastest * 3600 + x.shop.visitMin * 60;
+  const inRange = ranked.filter(x => roughCost(x) <= D);
+  const limit = SOLVER_SHOPS[state.mode];
+  const pool = shortlist(inRange, state.key ? limit : POOL_SHOPS, roughCost);
 
   const btn = $('findBtn'), label = btn.textContent, token = ++runToken;
   const staleMsg = 'Dane trasy zmieniły się w trakcie liczenia. Kliknij jeszcze raz, żeby policzyć od nowa.';
   btn.disabled = true;
   btn.textContent = 'Sprawdzam czasy przejazdów…';
   try {
-    const n = cands.length, S = n, E = n + 1;
-    const points = [...cands.map(c => c.shop), state.start, state.dest];
-    const origins = [...cands.map((_, i) => i), S], destinations = [...cands.map((_, i) => i), E];
-    const t = await api().matrix(points, origins, destinations, state.mode, departMs);
+    const P = pool.length, poolPoints = [...pool.map(c => c.shop), state.start, state.dest];
+    const origins = [...pool.map((_, i) => i), P], destinations = [...pool.map((_, i) => i), P + 1];
+    const poolT = await api().matrix(poolPoints, origins, destinations, state.mode, departMs);
 
     btn.textContent = 'Układam trasę…';
+    await sleep(0);
+    const poolHours = pool.map(c => hoursOn(c.shop, date));
+    const picked = pickCandidates({
+      score: pool.map(c => c.score),
+      visit: pool.map(c => c.shop.visitMin * 60),
+      open: poolHours.map(h => clockToRel(h.open, departMs)),
+      close: poolHours.map(h => clockToRel(h.close, departMs)),
+      t: poolT, D
+    }, limit);
+    const cands = picked.map(i => pool[i]);
+    const S = cands.length, E = S + 1;
+    const map = [...picked, P, P + 1];
+    const points = map.map(i => poolPoints[i]);
+    const hours = picked.map(i => poolHours[i]);
+    const t = map.map(a => map.map(b => poolT[a][b]));
     const inp = {
       score: cands.map(c => c.score),
       visit: cands.map(c => c.shop.visitMin * 60),
-      open: cands.map(c => clockToRel(c.shop.open, departMs)),
-      close: cands.map(c => clockToRel(c.shop.close, departMs)),
+      open: hours.map(h => clockToRel(h.open, departMs)),
+      close: hours.map(h => clockToRel(h.close, departMs)),
       t, D
     };
     const { plan, exact } = api().lazyTransit && state.mode === 'TRANSIT'
@@ -992,7 +1168,7 @@ async function findRoute() {
     if (!plan) {
       const avail = fmtMin(Math.max(0, D));
       return showError(errEl, t[S][E] === Infinity
-        ? 'Google nie znalazł trasy z punktu startu do celu w tym trybie. Spróbuj innego trybu.'
+        ? 'Nie znaleziono trasy z punktu startu do celu w tym trybie. Spróbuj innego trybu.'
         : `Nie zdążysz nawet prosto do celu: dojazd zajmuje ${fmtMin(t[S][E])}, a po odjęciu zapasu masz ${avail}.`);
     }
 
@@ -1000,7 +1176,7 @@ async function findRoute() {
     if (token !== runToken) return showError(errEl, staleMsg);
     const timeline = await confirmLegs(plan.order, cands, departMs);
     if (token !== runToken) return showError(errEl, staleMsg);
-    renderResult({ plan, exact, cands, ranked, timeline, departMs, deadlineMs, date });
+    renderResult({ plan, exact, cands, ranked, inRange: inRange.length, timeline, departMs, deadlineMs, date });
   } catch (e) {
     showError(errEl, token !== runToken ? staleMsg : serviceMessage(e));
   } finally {
@@ -1021,7 +1197,8 @@ async function confirmLegs(order, cands, departMs) {
     leg.warnings.forEach(w => warnings.add(w));
     paths.push(leg.path);
     const departLeg = clock, arrive = clock + leg.sec * 1000;
-    const openRel = clockToRel(shop.open, departMs), closeRel = clockToRel(shop.close, departMs);
+    const shopHours = hoursOn(shop, toDateStr(new Date(departMs)));
+    const openRel = clockToRel(shopHours.open, departMs), closeRel = clockToRel(shopHours.close, departMs);
     const begin = Math.max(arrive, openRel === null ? arrive : departMs + openRel * 1000);
     const leave = begin + shop.visitMin * 60000;
     stops.push({ shop, score: cands[idx].score, from, departLeg, arrive, begin, leave, travelSec: leg.sec, lines: leg.lines || [],
@@ -1041,7 +1218,7 @@ function navUrl(a, b) {
   return `https://www.google.com/maps/dir/?api=1&origin=${q(a)}&destination=${q(b)}&travelmode=${MODE_URL[state.mode]}`;
 }
 
-function renderResult({ plan, exact, cands, ranked, timeline, departMs, deadlineMs, date }) {
+function renderResult({ plan, exact, cands, ranked, inRange, timeline, departMs, deadlineMs, date }) {
   const { stops, end } = timeline;
   const margin = (deadlineMs - end) / 1000;
   $('resTotal').textContent = fmtScore(plan.sum);
@@ -1081,13 +1258,15 @@ function renderResult({ plan, exact, cands, ranked, timeline, departMs, deadline
   const skipped = [];
   ranked.filter(x => !visited.has(x.shop.id)).forEach((x, i) => {
     const out = !cands.some(c => c.shop.id === x.shop.id);
-    skipped.push(`${esc(x.shop.name)} (${fmtScore(x.score)}): ${out ? `poza ${MAX_SOLVER_SHOPS} najlepszymi, nie był liczony` : 'nie mieści się w czasie'}`);
+    skipped.push(`${esc(x.shop.name)} (${fmtScore(x.score)}): ${out ? 'za daleko albo mniej opłacalny, nie był dokładnie liczony' : 'nie mieści się w czasie'}`);
   });
-  state.shops.filter(s => s.active && scoreOn(s, date) <= 0).forEach(s => skipped.push(`${esc(s.name)}: ocena spadła do 0`));
+  state.shops.filter(s => canRoute(s, date) && scoreOn(s, date) <= 0).forEach(s => skipped.push(`${esc(s.name)}: ocena spadła do 0`));
+  state.shops.filter(s => s.active && !s.disliked && s.base > 0 && !isVisited(s, date) && hoursOn(s, date).closed).forEach(s => skipped.push(`${esc(s.name)}: tego dnia zamknięte`));
   $('resSkipped').innerHTML = skipped.length ? `<strong>Poza trasą</strong><br>${skipped.join('<br>')}` : '';
 
   const beta = state.mode !== 'TRANSIT' && state.key ? ['Trasy piesze i rowerowe Google są w wersji beta i mogą nie mieć chodników ani ścieżek rowerowych. Uważaj na drodze.'] : [];
   const partial = exact ? [] : [`Sprawdzono limit ${TRANSIT_CHECK_LIMIT} połączeń, więc to najlepsza znaleziona trasa, ale może istnieć lepsza.`];
+  if (inRange > cands.length) partial.push(`Dokładnie policzono ${cands.length} najbardziej obiecujących sklepów z ${inRange} w zasięgu. Lepsza trasa jest mało prawdopodobna, ale możliwa.`);
   $('resBeta').textContent = [...partial, ...beta, ...timeline.warnings].join(' ');
   $('resBeta').hidden = !$('resBeta').textContent;
 
