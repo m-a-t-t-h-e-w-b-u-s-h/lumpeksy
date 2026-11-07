@@ -73,6 +73,8 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 .preview div.reset { background: var(--tag); color: var(--tag-ink); font-weight: 700; }
 .preview b { display: block; font-size: .95rem; }
 .dlg-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.account { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+.account > div { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
 .pin { display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #1f6b4f; color: #fff; font: 700 13px/1 system-ui, sans-serif; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
 [hidden] { display: none !important; }
 </style>
@@ -83,6 +85,16 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
   <p class="lead">Podaj, skąd i dokąd idziesz, a aplikacja wybierze lumpeksy o najwyższej łącznej ocenie, które zdążysz odwiedzić.</p>
 
   <div id="app">
+    <section class="card" id="accountCard" hidden>
+      <div class="account">
+        <div>
+          <strong id="accountTitle"></strong>
+          <div class="hint" id="accountStatus"></div>
+        </div>
+        <button type="button" id="accountBtn"></button>
+      </div>
+    </section>
+
     <section class="card">
       <h2>Trasa</h2>
       <div class="field">
@@ -158,6 +170,7 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
       Komunikacja: <a href="https://transitous.org/sources/" target="_blank" rel="noopener">Transitous i jego źródła</a>.
       Kafelki: © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>.
       Kod i kontakt: <a href="https://github.com/m-a-t-t-h-e-w-b-u-s-h/lumpeksy" target="_blank" rel="noopener">GitHub</a> (licencja MIT).
+      Po zalogowaniu lista sklepów jest przechowywana w Google Firebase.
     </p>
   </div>
 </main>
@@ -528,7 +541,7 @@ const api = () => state.key ? googleApi : osmApi;
 function loadState() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) {}
-  return { key: '', start: null, dest: null, deadline: '', departure: '', mode: 'WALKING', buffer: 5, shops: [], ...saved };
+  return { key: '', start: null, dest: null, deadline: '', departure: '', mode: 'WALKING', buffer: 5, shops: [], updatedAt: 0, syncUid: '', ...saved };
 }
 
 function save() {
@@ -541,12 +554,175 @@ let runToken = 0;
 
 function changed() {
   runToken++;
+  noteLocalChange();
   save();
   $('result').hidden = true;
   showError($('findErr'), '');
 }
 
 const tripDateStr = () => toDateStr(state.departure ? new Date(state.departure) : new Date());
+
+/* ---------- Konto Google i synchronizacja (Firebase) ---------- */
+
+// Konfiguracja projektu Firebase; bez niej logowanie jest ukryte.
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyB3xdRQGprX8RHLsW3luKQvXAFdh7Ikvqk',
+  authDomain: 'lumpeksy-5b466.firebaseapp.com',
+  projectId: 'lumpeksy-5b466',
+  storageBucket: 'lumpeksy-5b466.firebasestorage.app',
+  messagingSenderId: '667924793036',
+  appId: '1:667924793036:web:b3cad774da21a4a339a469'
+};
+const FIREBASE_SDK = 'https://www.gstatic.com/firebasejs/13.2.0';
+
+let fb = null, cloudUser = null, cloudRef = null, stopSnapshot = null, pushTimer = null, pushing = null;
+
+const syncedPart = () => ({ shops: state.shops, mode: state.mode, buffer: state.buffer });
+let syncedJson = JSON.stringify(syncedPart());
+
+async function loadFirebase() {
+  const [app, auth, store] = await Promise.all(['app', 'auth', 'firestore'].map(n => import(`${FIREBASE_SDK}/firebase-${n}.js`)));
+  return { ...app, ...auth, ...store };
+}
+
+function setAccountStatus(text) { $('accountStatus').textContent = text; }
+
+function renderAccount() {
+  $('accountTitle').textContent = cloudUser ? (cloudUser.email || 'Konto Google') : 'Zapisuj sklepy na koncie';
+  $('accountBtn').textContent = cloudUser ? 'Wyloguj' : 'Zaloguj przez Google';
+  if (!cloudUser) setAccountStatus('Po zalogowaniu lista sklepów będzie taka sama na każdym urządzeniu.');
+}
+
+async function initCloud(config) {
+  $('accountCard').hidden = false;
+  renderAccount();
+  try {
+    const f = await loadFirebase();
+    const app = f.initializeApp(config);
+    fb = { f, auth: f.getAuth(app), db: f.getFirestore(app) };
+    f.onAuthStateChanged(fb.auth, user => { user ? startSync(user) : stopSync(); });
+  } catch (e) {
+    setAccountStatus('Nie udało się połączyć z logowaniem. Strona działa dalej, a dane zostają w tej przeglądarce.');
+  }
+}
+
+$('accountBtn').onclick = async () => {
+  if (!fb) return;
+  if (cloudUser) return signOutAndClear();
+  try {
+    await fb.f.signInWithPopup(fb.auth, new fb.f.GoogleAuthProvider());
+  } catch (e) {
+    const code = e && e.code;
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
+    setAccountStatus(code === 'auth/popup-blocked'
+      ? 'Przeglądarka zablokowała okno logowania. Zezwól na nie i spróbuj ponownie.'
+      : `Logowanie nie powiodło się (${code || e}).`);
+  }
+};
+
+// Pierwsze logowanie na urządzeniu łączy listy, żeby nic nie przepadło; później wygrywa nowsza wersja.
+function mergeShops(cloudShops, localShops) {
+  const ids = new Set(cloudShops.map(s => s.id));
+  return [...cloudShops, ...localShops.filter(s => !ids.has(s.id))];
+}
+
+function applyCloud(data) {
+  state.shops = data.shops || [];
+  state.mode = data.mode || state.mode;
+  state.buffer = data.buffer ?? state.buffer;
+  state.updatedAt = data.updatedAt || 0;
+  syncedJson = JSON.stringify(syncedPart());
+  runToken++;
+  save();
+  $('result').hidden = true;
+  renderTrip();
+  renderShops();
+}
+
+async function startSync(user) {
+  cloudUser = user;
+  renderAccount();
+  setAccountStatus('Pobieram zapisane sklepy…');
+  try {
+    cloudRef = fb.f.doc(fb.db, 'users', user.uid);
+    const snap = await fb.f.getDoc(cloudRef);
+    const cloud = snap.exists() ? snap.data() : null;
+    if (state.syncUid !== user.uid && cloud && state.syncUid) {
+      applyCloud(cloud);
+    } else if (state.syncUid !== user.uid && cloud) {
+      const merged = mergeShops(cloud.shops || [], state.shops);
+      const addsLocal = merged.length > (cloud.shops || []).length;
+      applyCloud({ ...cloud, shops: merged });
+      if (addsLocal) { bumpUpdatedAt(); schedulePush(0); }
+    } else if (cloud && (cloud.updatedAt || 0) > (state.updatedAt || 0)) {
+      applyCloud(cloud);
+    } else if (!cloud || (state.updatedAt || 0) > (cloud.updatedAt || 0)) {
+      state.updatedAt = state.updatedAt || Date.now();
+      schedulePush(0);
+    }
+    state.syncUid = user.uid;
+    save();
+    setAccountStatus('Zapisane na koncie.');
+    if (stopSnapshot) stopSnapshot();
+    stopSnapshot = fb.f.onSnapshot(cloudRef, s => {
+      if (s.metadata.hasPendingWrites || !s.exists()) return;
+      const data = s.data();
+      if ((data.updatedAt || 0) > (state.updatedAt || 0)) applyCloud(data);
+    }, () => setAccountStatus('Utracono połączenie z zapisem. Zmiany zostają w tej przeglądarce.'));
+  } catch (e) {
+    setAccountStatus('Nie udało się pobrać danych z konta. Zmiany zostają w tej przeglądarce.');
+  }
+}
+
+function stopSync() {
+  if (stopSnapshot) stopSnapshot();
+  stopSnapshot = null;
+  cloudUser = cloudRef = null;
+  clearTimeout(pushTimer);
+  renderAccount();
+}
+
+// Znacznik zawsze rośnie, nawet gdy zegar innego urządzenia się spieszy.
+const bumpUpdatedAt = () => { state.updatedAt = Math.max(Date.now(), (state.updatedAt || 0) + 1); };
+
+function noteLocalChange() {
+  const json = JSON.stringify(syncedPart());
+  if (json === syncedJson) return;
+  syncedJson = json;
+  bumpUpdatedAt();
+  if (cloudUser) schedulePush(800);
+}
+
+function schedulePush(delay) {
+  clearTimeout(pushTimer);
+  setAccountStatus('Zapisuję…');
+  pushTimer = setTimeout(pushNow, delay);
+}
+
+function pushNow() {
+  clearTimeout(pushTimer);
+  if (!cloudRef) return Promise.resolve();
+  const data = JSON.parse(JSON.stringify({ ...syncedPart(), updatedAt: state.updatedAt }));
+  pushing = fb.f.setDoc(cloudRef, data).then(
+    () => setAccountStatus('Zapisane na koncie.'),
+    () => setAccountStatus('Nie udało się zapisać na koncie. Zmiany są w tej przeglądarce i wyślą się przy następnym otwarciu strony.')
+  );
+  return pushing;
+}
+
+async function signOutAndClear() {
+  if (pushTimer) await pushNow();
+  await pushing;
+  await fb.f.signOut(fb.auth);
+  // Dane są na koncie, więc nie zostawiamy ich na urządzeniu, np. cudzym.
+  Object.assign(state, { shops: [], start: null, dest: null, syncUid: '', updatedAt: 0 });
+  syncedJson = JSON.stringify(syncedPart());
+  runToken++;
+  save();
+  $('result').hidden = true;
+  renderTrip();
+  renderShops();
+}
 
 /* ---------- Pola wyszukiwania miejsc ---------- */
 
@@ -723,7 +899,11 @@ function saveDialog() {
   if (draftOriginalBase !== null && draft.base !== draftOriginalBase) draft.ratedAt = toDateStr(new Date());
   Object.assign(draft, { decayValue: value, visitMin: visit, open, close });
   if (draftIsNew) state.shops.push(draft);
-  else state.shops[state.shops.findIndex(s => s.id === draft.id)] = draft;
+  else {
+    // Sklep mógł w międzyczasie zniknąć przez synchronizację z innym urządzeniem.
+    const i = state.shops.findIndex(s => s.id === draft.id);
+    if (i === -1) state.shops.push(draft); else state.shops[i] = draft;
+  }
   $('shopDlg').close();
   changed();
   renderShops();
@@ -1033,6 +1213,7 @@ $('buffer').onchange = e => { state.buffer = Math.max(0, parseInt(e.target.value
 $('findBtn').onclick = findRoute;
 
 buildDialogControls();
+if (FIREBASE_CONFIG && location.protocol !== 'file:') initCloud(FIREBASE_CONFIG);
 showApp();
 </script>
 </body>
